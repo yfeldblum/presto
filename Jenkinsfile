@@ -33,7 +33,7 @@ pipeline {
             stages {
                 stage('Setup') {
                     steps {
-                        sh 'apt update && apt install -y awscli git tree'
+                        sh 'whoami && sudo apt update && sudo apt install -y awscli git libaio1 libnuma-dev tree'
                         sh 'git config --global --add safe.directory ${WORKSPACE}'
                     }
                 }
@@ -58,7 +58,7 @@ pipeline {
 
                         echo "build prestodb source code with build version ${PRESTO_BUILD_VERSION}"
                         sh '''
-                            unset MAVEN_CONFIG && ./mvnw install -DskipTests -B -T C1 -P ci -pl '!presto-docs'
+                            unset MAVEN_CONFIG && ./mvnw install -B -P ci -pl '!presto-docs'
                             tree /root/.m2/repository/com/facebook/presto/
                         '''
 
