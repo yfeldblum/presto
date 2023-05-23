@@ -11,6 +11,7 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '500'))
+        parallelsAlwaysFailFast()
         timeout(time: 2, unit: 'HOURS')
     }
 
@@ -33,12 +34,14 @@ pipeline {
             stages {
                 stage('Setup') {
                     steps {
-                        sh 'whoami && sudo apt update && sudo apt install -y awscli git libaio1 libnuma-dev tree'
-                        sh 'git config --global --add safe.directory ${WORKSPACE}'
+                        sh '''
+                            whoami && apt update && apt install -y awscli git libaio1 libnuma-dev tree
+                            git config --global --add safe.directory ${WORKSPACE}
+                        '''
                     }
                 }
 
-                stage('Maven') {
+                stage('Build') {
                     steps {
                         sh 'unset MAVEN_CONFIG && ./mvnw versions:set -DremoveSnapshot'
                         script {
@@ -52,16 +55,39 @@ pipeline {
                                 env.GIT_COMMIT.substring(0, 7)
                             env.DOCKER_IMAGE = env.AWS_ECR + "/oss-presto/presto:${PRESTO_BUILD_VERSION}"
                             env.DOCKER_NATIVE_IMAGE = env.AWS_ECR + "/oss-presto/presto-native:${PRESTO_BUILD_VERSION}"
-
                         }
                         sh 'printenv | sort'
 
                         echo "build prestodb source code with build version ${PRESTO_BUILD_VERSION}"
                         sh '''
-                            unset MAVEN_CONFIG && ./mvnw install -B -P ci -pl '!presto-docs'
+                            unset MAVEN_CONFIG && ./mvnw install -DskipTests -B -P ci -pl '!presto-docs'
                             tree /root/.m2/repository/com/facebook/presto/
                         '''
+                    }
+                }
 
+                matrix {
+                    axes {
+                        axis {
+                            name 'module'
+                            values ':presto-tests -P presto-tests-execution-memory'
+                        }
+                    }
+                    stages {
+                        stage('test') {
+                            steps {
+                                echo "run prestodb unit and integration tests"
+                                sh '''
+                                    unset MAVEN_CONFIG && ./mvnw test -pl "${module}"
+                                    tree /root/.m2/repository/com/facebook/presto/
+                                '''
+                            }
+                        }
+
+                }
+
+                stage('Publish') {
+                    steps {
                         echo 'Publish Maven tarball'
                         withCredentials([[
                                 $class:            'AmazonWebServicesCredentialsBinding',
