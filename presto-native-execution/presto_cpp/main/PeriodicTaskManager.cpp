@@ -18,14 +18,24 @@
 #include "presto_cpp/main/PrestoExchangeSource.h"
 #include "presto_cpp/main/TaskManager.h"
 #include "presto_cpp/main/common/Counters.h"
+#include "presto_cpp/main/http/filters/HttpEndpointLatencyFilter.h"
 #include "velox/common/base/StatsReporter.h"
+#include "velox/common/base/SuccinctPrinter.h"
 #include "velox/common/caching/AsyncDataCache.h"
+#include "velox/common/caching/SsdFile.h"
 #include "velox/common/memory/MemoryAllocator.h"
 #include "velox/common/memory/MmapAllocator.h"
 #include "velox/connectors/hive/HiveConnector.h"
 #include "velox/exec/Driver.h"
 
 #include <sys/resource.h>
+
+namespace {
+#define REPORT_IF_NOT_ZERO(name, counter)     \
+  if ((counter) != 0) {                       \
+    REPORT_ADD_STAT_VALUE((name), (counter)); \
+  }
+} // namespace
 
 namespace facebook::presto {
 
@@ -40,7 +50,16 @@ static constexpr size_t kExchangeSourcePeriodGlobalCounters{
 static constexpr size_t kTaskPeriodCleanOldTasks{60'000'000}; // 60 seconds.
 // Every 1 minute we export cache counters.
 static constexpr size_t kCachePeriodGlobalCounters{60'000'000}; // 60 seconds.
+// Every 1 minute we export connector counters.
+static constexpr size_t kConnectorPeriodGlobalCounters{
+    60'000'000}; // 60 seconds.
 static constexpr size_t kOsPeriodGlobalCounters{2'000'000}; // 2 seconds
+static constexpr size_t kSpillStatsUpdateIntervalUs{60'000'000}; // 60 seconds
+static constexpr size_t kArbitratorStatsUpdateIntervalUs{
+    60'000'000}; // 60 seconds
+// Every 1 minute we print endpoint latency counters.
+static constexpr size_t kHttpEndpointLatencyPeriodGlobalCounters{
+    60'000'000}; // 60 seconds.
 
 PeriodicTaskManager::PeriodicTaskManager(
     folly::CPUThreadPoolExecutor* const driverCPUExecutor,
@@ -56,6 +75,7 @@ PeriodicTaskManager::PeriodicTaskManager(
       taskManager_(taskManager),
       memoryAllocator_(memoryAllocator),
       asyncDataCache_(asyncDataCache),
+      arbitrator_(velox::memory::MemoryManager::getInstance().arbitrator()),
       connectors_(connectors) {}
 
 void PeriodicTaskManager::start() {
@@ -76,6 +96,16 @@ void PeriodicTaskManager::start() {
   }
   addConnectorStatsTask();
   addOperatingSystemStatsUpdateTask();
+
+  addSpillStatsUpdateTask();
+  if (SystemConfig::instance()->enableHttpEndpointLatencyFilter()) {
+    addHttpEndpointLatencyStatsTask();
+  }
+
+  VELOX_CHECK_NOT_NULL(arbitrator_);
+  if (arbitrator_->kind() != "NOOP") {
+    addArbitratorStatsTask();
+  }
 
   // This should be the last call in this method.
   scheduler_.start();
@@ -246,6 +276,9 @@ void PeriodicTaskManager::updateCacheStats() {
       kCounterMemoryCacheNumHit,
       memoryCacheStats.numHit - lastMemoryCacheHits_);
   REPORT_ADD_STAT_VALUE(
+      kCounterMemoryCacheHitBytes,
+      memoryCacheStats.hitBytes - lastMemoryCacheHitsBytes_);
+  REPORT_ADD_STAT_VALUE(
       kCounterMemoryCacheNumNew,
       memoryCacheStats.numNew - lastMemoryCacheInserts_);
   REPORT_ADD_STAT_VALUE(
@@ -262,6 +295,7 @@ void PeriodicTaskManager::updateCacheStats() {
       memoryCacheStats.allocClocks - lastMemoryCacheAllocClocks_);
 
   lastMemoryCacheHits_ = memoryCacheStats.numHit;
+  lastMemoryCacheHitsBytes_ = memoryCacheStats.hitBytes;
   lastMemoryCacheInserts_ = memoryCacheStats.numNew;
   lastMemoryCacheEvictions_ = memoryCacheStats.numEvict;
   lastMemoryCacheEvictionChecks_ = memoryCacheStats.numEvictChecks;
@@ -271,6 +305,8 @@ void PeriodicTaskManager::updateCacheStats() {
   // All time cumulatives.
   REPORT_ADD_STAT_VALUE(
       kCounterMemoryCacheNumCumulativeHit, memoryCacheStats.numHit);
+  REPORT_ADD_STAT_VALUE(
+      kCounterMemoryCacheCumulativeHitBytes, memoryCacheStats.hitBytes);
   REPORT_ADD_STAT_VALUE(
       kCounterMemoryCacheNumCumulativeNew, memoryCacheStats.numNew);
   REPORT_ADD_STAT_VALUE(
@@ -414,7 +450,7 @@ void PeriodicTaskManager::addConnectorStatsTask() {
                     oldValues[kNumLookupsMetricName]);
             oldValues[kNumLookupsMetricName] = fileHandleCacheStats.numLookups;
           },
-          std::chrono::microseconds{kCachePeriodGlobalCounters},
+          std::chrono::microseconds{kConnectorPeriodGlobalCounters},
           fmt::format("{}.hive_connector_counters", connectorId));
     }
   }
@@ -467,5 +503,91 @@ void PeriodicTaskManager::addOperatingSystemStatsUpdateTask() {
       [this]() { updateOperatingSystemStats(); },
       std::chrono::microseconds{kOsPeriodGlobalCounters},
       "os_counters");
+}
+
+void PeriodicTaskManager::addArbitratorStatsTask() {
+  scheduler_.addFunction(
+      [this]() { updateArbitratorStatsTask(); },
+      std::chrono::microseconds{kArbitratorStatsUpdateIntervalUs},
+      "arbitrator_stats");
+}
+
+void PeriodicTaskManager::updateArbitratorStatsTask() {
+  const auto updatedArbitratorStats = arbitrator_->stats();
+  VELOX_CHECK_GE(updatedArbitratorStats, lastArbitratorStats_);
+  const auto deltaArbitratorStats =
+      updatedArbitratorStats - lastArbitratorStats_;
+  REPORT_IF_NOT_ZERO(
+      kCounterArbitratorNumRequests, deltaArbitratorStats.numRequests);
+  REPORT_IF_NOT_ZERO(
+      kCounterArbitratorNumAborted, deltaArbitratorStats.numAborted);
+  REPORT_IF_NOT_ZERO(
+      kCounterArbitratorNumFailures, deltaArbitratorStats.numFailures);
+  REPORT_IF_NOT_ZERO(
+      kCounterArbitratorQueueTimeUs, deltaArbitratorStats.queueTimeUs);
+  REPORT_IF_NOT_ZERO(
+      kCounterArbitratorArbitrationTimeUs,
+      deltaArbitratorStats.arbitrationTimeUs);
+  REPORT_IF_NOT_ZERO(
+      kCounterArbitratorNumShrunkBytes, deltaArbitratorStats.numShrunkBytes);
+  REPORT_IF_NOT_ZERO(
+      kCounterArbitratorNumReclaimedBytes,
+      deltaArbitratorStats.numReclaimedBytes);
+  REPORT_IF_NOT_ZERO(
+      kCounterArbitratorFreeCapacityBytes,
+      deltaArbitratorStats.freeCapacityBytes);
+  LOG(INFO) << "Memory arbitrator stats update: "
+            << deltaArbitratorStats.toString();
+  lastArbitratorStats_ = updatedArbitratorStats;
+}
+
+void PeriodicTaskManager::addSpillStatsUpdateTask() {
+  scheduler_.addFunction(
+      [this]() { updateSpillStatsTask(); },
+      std::chrono::microseconds{kSpillStatsUpdateIntervalUs},
+      "spill_stats");
+}
+
+void PeriodicTaskManager::updateSpillStatsTask() {
+  const auto updatedSpillStats = velox::exec::globalSpillStats();
+  VELOX_CHECK_GE(updatedSpillStats, lastSpillStats_);
+  const auto deltaSpillStats = updatedSpillStats - lastSpillStats_;
+  REPORT_IF_NOT_ZERO(kCounterSpillRuns, deltaSpillStats.spillRuns);
+  REPORT_IF_NOT_ZERO(kCounterSpilledFiles, deltaSpillStats.spilledFiles);
+  REPORT_IF_NOT_ZERO(kCounterSpilledRows, deltaSpillStats.spilledRows);
+  REPORT_IF_NOT_ZERO(kCounterSpilledBytes, deltaSpillStats.spilledBytes);
+  REPORT_IF_NOT_ZERO(kCounterSpillFillTimeUs, deltaSpillStats.spillFillTimeUs);
+  REPORT_IF_NOT_ZERO(kCounterSpillSortTimeUs, deltaSpillStats.spillSortTimeUs);
+  REPORT_IF_NOT_ZERO(
+      kCounterSpillSerializationTimeUs,
+      deltaSpillStats.spillSerializationTimeUs);
+  REPORT_IF_NOT_ZERO(kCounterSpillDiskWrites, deltaSpillStats.spillDiskWrites);
+  REPORT_IF_NOT_ZERO(
+      kCounterSpillFlushTimeUs, deltaSpillStats.spillFlushTimeUs);
+  REPORT_IF_NOT_ZERO(
+      kCounterSpillWriteTimeUs, deltaSpillStats.spillWriteTimeUs);
+  if (deltaSpillStats.spilledBytes > 0) {
+    LOG(INFO) << "Spill Stats:" << deltaSpillStats.toString();
+  }
+  lastSpillStats_ = updatedSpillStats;
+}
+
+void PeriodicTaskManager::printHttpEndpointLatencyStats() {
+  const auto latencyMetrics =
+      http::filters::HttpEndpointLatencyFilter::retrieveLatencies();
+  std::ostringstream oss;
+  oss << "Http endpoint latency \n[\n";
+  for (const auto& metrics : latencyMetrics) {
+    oss << metrics.toString() << ",\n";
+  }
+  oss << "]";
+  LOG(INFO) << oss.str();
+}
+
+void PeriodicTaskManager::addHttpEndpointLatencyStatsTask() {
+  scheduler_.addFunction(
+      [this]() { printHttpEndpointLatencyStats(); },
+      std::chrono::microseconds{kHttpEndpointLatencyPeriodGlobalCounters},
+      "http_endpoint_counters");
 }
 } // namespace facebook::presto

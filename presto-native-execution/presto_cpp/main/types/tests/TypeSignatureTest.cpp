@@ -146,6 +146,15 @@ TEST_F(TestTypeSignature, sig16) {
   assertSignatureFail("rowxxx(a)");
 }
 
+TEST_F(TestTypeSignature, rowWithNumericFieldName) {
+  assertRowSignature(
+      "row(\"12\" bigint,b bigint,c bigint)",
+      rowSignature(
+          namedParameter("12", false, signature("bigint")),
+          namedParameter("b", false, signature("bigint")),
+          namedParameter("c", false, signature("bigint"))));
+}
+
 TEST_F(TestTypeSignature, TestRow01) {
   assertRowSignature(
       "row(a bigint,b bigint,c bigint)",
@@ -328,12 +337,10 @@ TEST_F(TestTypeSignature, spaces01) {
 }
 
 TEST_F(TestTypeSignature, spaces04) {
-  assertRowSignatureContainsThrows(
+  assertRowSignature(
       "row(interval interval year to month)",
       rowSignature(namedParameter(
-          "interval", false, signature("interval year to month"))),
-      VeloxUserError,
-      "Specified element is not found : INTERVAL YEAR TO MONTH");
+          "interval", false, signature("interval year to month"))));
 }
 
 TEST_F(TestTypeSignature, spaces05) {
@@ -353,11 +360,9 @@ TEST_F(TestTypeSignature, spaces06) {
 }
 
 TEST_F(TestTypeSignature, spaces09) {
-  assertRowSignatureContainsThrows(
+  assertRowSignature(
       "row(interval year to month)",
-      rowSignature(unnamedParameter(signature("interval year to month"))),
-      VeloxUserError,
-      "Specified element is not found : INTERVAL YEAR TO MONTH");
+      rowSignature(unnamedParameter(signature("interval year to month"))));
 }
 
 TEST_F(TestTypeSignature, spaces10) {
@@ -395,8 +400,14 @@ TEST_F(TestTypeSignature, functionType) {
 }
 
 TEST_F(TestTypeSignature, decimalType) {
-  assertSignature("decimal(10, 5)", "DECIMAL(10,5)");
-  assertSignature("decimal(20,10)", "DECIMAL(20,10)");
+  // https://github.com/facebookincubator/velox/pull/6295 changes the output of
+  // DecimalType::toString() in Velox to add a space after comma. To avoid
+  // breakages, temporarily, allow both formats.
+  auto signature1 = parseTypeSignature("decimal(10, 5)")->toString();
+  ASSERT_TRUE(signature1 == "DECIMAL(10, 5)" || signature1 == "DECIMAL(10,5)");
+  auto signature2 = parseTypeSignature("decimal(20,10)")->toString();
+  ASSERT_TRUE(
+      signature2 == "DECIMAL(20, 10)" || signature2 == "DECIMAL(20,10)");
   ASSERT_THROWS_CONTAINS_MESSAGE(
       parseTypeSignature("decimal");
       , VeloxUserError, "Failed to parse type [decimal]");

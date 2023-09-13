@@ -42,17 +42,16 @@ class ShuffleWriteOperator : public Operator {
             planNode->outputType(),
             operatorId,
             planNode->id(),
-            "ShuffleWrite") {
+            "ShuffleWrite"),
+        numPartitions_{planNode->numPartitions()},
+        serializedShuffleWriteInfo_{planNode->serializedShuffleWriteInfo()} {
     const auto& shuffleName = planNode->shuffleName();
-    auto shuffleFactory = ShuffleInterfaceFactory::factory(shuffleName);
-    VELOX_CHECK(
-        shuffleFactory != nullptr,
-        fmt::format(
-            "Failed to create shuffle write interface: Shuffle factory "
-            "with name '{}' is not registered.",
-            shuffleName));
-    shuffle_ = shuffleFactory->createWriter(
-        planNode->serializedShuffleWriteInfo(), operatorCtx_->pool());
+    shuffleFactory_ = ShuffleInterfaceFactory::factory(shuffleName);
+    VELOX_CHECK_NOT_NULL(
+        shuffleFactory_,
+        "Failed to create shuffle write interface: Shuffle factory "
+        "with name '{}' is not registered.",
+        shuffleName);
   }
 
   bool needsInput() const override {
@@ -60,20 +59,37 @@ class ShuffleWriteOperator : public Operator {
   }
 
   void addInput(RowVectorPtr input) override {
+    checkCreateShuffleWriter();
     auto partitions = input->childAt(0)->as<SimpleVector<int32_t>>();
     auto serializedRows = input->childAt(1)->as<SimpleVector<StringView>>();
+    SimpleVector<bool>* replicate = nullptr;
+    if (input->type()->size() == 3) {
+      replicate = input->childAt(2)->as<SimpleVector<bool>>();
+    }
+
     for (auto i = 0; i < input->size(); ++i) {
-      auto partition = partitions->valueAt(i);
       auto data = serializedRows->valueAt(i);
-      CALL_SHUFFLE(
-          shuffle_->collect(
-              partition, std::string_view(data.data(), data.size())),
-          "collect");
+      if (replicate && replicate->valueAt(i)) {
+        for (auto partition = 0; partition < numPartitions_; ++partition) {
+          CALL_SHUFFLE(
+              shuffle_->collect(
+                  partition, std::string_view(data.data(), data.size())),
+              "collect");
+        }
+      } else {
+        auto partition = partitions->valueAt(i);
+        CALL_SHUFFLE(
+            shuffle_->collect(
+                partition, std::string_view(data.data(), data.size())),
+            "collect");
+      }
     }
   }
 
   void noMoreInput() override {
     Operator::noMoreInput();
+
+    checkCreateShuffleWriter();
     CALL_SHUFFLE(shuffle_->noMoreData(true), "noMoreData");
 
     {
@@ -97,6 +113,16 @@ class ShuffleWriteOperator : public Operator {
   }
 
  private:
+  void checkCreateShuffleWriter() {
+    if (shuffle_ == nullptr) {
+      shuffle_ = shuffleFactory_->createWriter(
+          serializedShuffleWriteInfo_, operatorCtx_->pool());
+    }
+  }
+
+  const uint32_t numPartitions_;
+  const std::string serializedShuffleWriteInfo_;
+  ShuffleInterfaceFactory* shuffleFactory_;
   std::shared_ptr<ShuffleWriter> shuffle_;
 };
 
@@ -105,6 +131,7 @@ class ShuffleWriteOperator : public Operator {
 
 folly::dynamic ShuffleWriteNode::serialize() const {
   auto obj = PlanNode::serialize();
+  obj["numPartitions"] = numPartitions_;
   obj["shuffleName"] = ISerializable::serialize<std::string>(shuffleName_);
   obj["shuffleWriteInfo"] =
       ISerializable::serialize<std::string>(serializedShuffleWriteInfo_);
@@ -117,6 +144,7 @@ velox::core::PlanNodePtr ShuffleWriteNode::create(
     void* context) {
   return std::make_shared<ShuffleWriteNode>(
       deserializePlanNodeId(obj),
+      obj["numPartitions"].asInt(),
       ISerializable::deserialize<std::string>(obj["shuffleName"], context),
       ISerializable::deserialize<std::string>(obj["shuffleWriteInfo"], context),
       ISerializable::deserialize<std::vector<velox::core::PlanNode>>(

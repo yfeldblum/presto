@@ -70,6 +70,7 @@ public abstract class AbstractTestNativeJoinQueries
     @Test(dataProvider = "joinTypeProvider")
     public void testSemiJoin(Session joinTypeSession)
     {
+        assertQuery(joinTypeSession, "SELECT * FROM orders WHERE orderdate IN (SELECT shipdate FROM lineitem) or orderdate IN (SELECT commitdate FROM lineitem)");
         assertQuery(joinTypeSession, "SELECT * FROM lineitem WHERE orderkey IN (SELECT orderkey FROM orders WHERE (orderkey + custkey) % 2 = 0)");
         assertQuery(joinTypeSession, "SELECT * FROM lineitem " +
                 "WHERE linenumber = 3 OR orderkey IN (SELECT orderkey FROM orders WHERE (orderkey + custkey) % 2 = 0)");
@@ -104,6 +105,7 @@ public abstract class AbstractTestNativeJoinQueries
         assertQuery("SELECT * FROM nation n, region r WHERE n.regionkey < r.regionkey");
 
         assertQueryReturnsEmptyResult("SELECT l.linenumber FROM lineitem l, orders o WHERE l.orderkey = o.orderkey AND o.orderkey = 12345 AND o.totalprice > 0");
+
         assertQuery("SELECT l.linenumber FROM lineitem l, orders o WHERE l.orderkey = o.orderkey AND o.orderkey = 14209 AND o.totalprice > 0");
 
         assertQuery("SELECT * FROM nation_partitioned a, nation_partitioned b");

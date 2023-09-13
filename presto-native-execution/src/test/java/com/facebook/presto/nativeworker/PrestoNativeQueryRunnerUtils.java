@@ -14,11 +14,14 @@
 package com.facebook.presto.nativeworker;
 
 import com.facebook.airlift.log.Logger;
+import com.facebook.presto.functionNamespace.FunctionNamespaceManagerPlugin;
+import com.facebook.presto.functionNamespace.json.JsonFileBasedFunctionNamespaceManagerFactory;
 import com.facebook.presto.hive.HiveQueryRunner;
 import com.facebook.presto.testing.QueryRunner;
 import com.facebook.presto.tests.DistributedQueryRunner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Resources;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -101,6 +104,15 @@ public class PrestoNativeQueryRunnerUtils
     public static QueryRunner createJavaQueryRunner(Optional<Path> baseDataDirectory, String security, String storageFormat)
             throws Exception
     {
+        ImmutableMap.Builder<String, String> hivePropertiesBuilder = new ImmutableMap.Builder<>();
+        hivePropertiesBuilder
+                .put("hive.storage-format", storageFormat)
+                .put("hive.pushdown-filter-enabled", "true");
+
+        if ("legacy".equals(security)) {
+            hivePropertiesBuilder.put("hive.allow-drop-table", "true");
+        }
+
         Optional<Path> dataDirectory = baseDataDirectory.map(path -> Paths.get(path.toString() + '/' + storageFormat));
         DistributedQueryRunner queryRunner =
                 HiveQueryRunner.createQueryRunner(
@@ -110,9 +122,7 @@ public class PrestoNativeQueryRunnerUtils
                                 "regex-library", "RE2J",
                                 "offset-clause-enabled", "true"),
                         security,
-                        ImmutableMap.of(
-                                "hive.storage-format", storageFormat,
-                                "hive.pushdown-filter-enabled", "true"),
+                        hivePropertiesBuilder.build(),
                         dataDirectory);
         return queryRunner;
     }
@@ -133,6 +143,7 @@ public class PrestoNativeQueryRunnerUtils
                 ImmutableMap.<String, String>builder()
                         .put("http-server.http.port", "8080")
                         .put("experimental.internal-communication.thrift-transport-enabled", String.valueOf(useThrift))
+                        .put("native-execution-enabled", "true")
                         .putAll(getNativeWorkerSystemProperties())
                         .build(),
                 ImmutableMap.of(),
@@ -215,5 +226,18 @@ public class PrestoNativeQueryRunnerUtils
         assertNotNull(dataDirectory, "Data directory path is missing. Add -DDATA_DIR=<path/to/data> to your JVM arguments.");
 
         return PrestoNativeQueryRunnerUtils.createNativeQueryRunner(dataDirectory, prestoServerPath, Optional.ofNullable(workerCount).map(Integer::parseInt), cacheMaxSize, useThrift, storageFormat);
+    }
+
+    public static void setupJsonFunctionNamespaceManager(QueryRunner queryRunner, String jsonFileName, String catalogName)
+    {
+        String jsonDefinitionPath = Resources.getResource(jsonFileName).getFile();
+        queryRunner.installPlugin(new FunctionNamespaceManagerPlugin());
+        queryRunner.loadFunctionNamespaceManager(
+                JsonFileBasedFunctionNamespaceManagerFactory.NAME,
+                catalogName,
+                ImmutableMap.of(
+                        "supported-function-languages", "CPP",
+                        "function-implementation-type", "CPP",
+                        "json-based-function-manager.path-to-function-definition", jsonDefinitionPath));
     }
 }
