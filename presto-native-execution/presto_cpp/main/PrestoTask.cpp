@@ -494,12 +494,15 @@ void PrestoTask::updateTimeInfoLocked(
       util::toISOTimestamp(veloxTaskStats.executionStartTimeMs);
   prestoTaskStats.firstStartTime =
       util::toISOTimestamp(veloxTaskStats.firstSplitStartTimeMs);
+  createTime = veloxTaskStats.executionStartTimeMs;
+  firstStartTime = veloxTaskStats.firstSplitStartTimeMs;
   prestoTaskStats.lastStartTime =
       util::toISOTimestamp(veloxTaskStats.lastSplitStartTimeMs);
   prestoTaskStats.lastEndTime =
       util::toISOTimestamp(veloxTaskStats.executionEndTimeMs);
   prestoTaskStats.endTime =
       util::toISOTimestamp(veloxTaskStats.executionEndTimeMs);
+  lastEndTime = veloxTaskStats.executionEndTimeMs;
 
   if (veloxTaskStats.executionEndTimeMs > veloxTaskStats.executionStartTimeMs) {
     prestoTaskStats.elapsedTimeInNanos = (veloxTaskStats.executionEndTimeMs -
@@ -801,6 +804,9 @@ folly::dynamic PrestoTask::toJson() const {
   obj["lastHeartbeatMs"] = lastHeartbeatMs;
   obj["lastTaskStatsUpdateMs"] = lastTaskStatsUpdateMs;
   obj["lastMemoryReservation"] = lastMemoryReservation;
+  obj["createTime"] = createTime;
+  obj["firstStartTime"] = firstStartTime;
+  obj["lastEndTime"] = lastEndTime;
 
   json j;
   to_json(j, info);
