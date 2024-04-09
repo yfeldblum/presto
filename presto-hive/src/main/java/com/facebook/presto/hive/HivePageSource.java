@@ -96,9 +96,12 @@ public class HivePageSource
                 coercers[columnIndex] = createCoercer(typeManager, columnMapping.getCoercionFrom().get(), columnMapping.getHiveColumnHandle().getHiveType());
             }
             // TODO use isRowIdColumn once that diff lands
-            else if ("$row_id".equals(name) && rowIdPartitionComponent.isPresent()) {
+            // TODO decide whether to omit rowID if rowIdPartitionComponent is not available. It interferes
+            // with integration tests that don't talk to metastore
+            else if ("$row_id".equals(name) /* && rowIdPartitionComponent.isPresent() */) {
+                byte[] partitionID = rowIdPartitionComponent.isPresent() ? rowIdPartitionComponent.get() : new byte[0];
                 String rowGroupId = Paths.get(path).getFileName().toString();
-                coercers[columnIndex] = new RowIDCoercer(rowIdPartitionComponent.get(), rowGroupId);
+                coercers[columnIndex] = new RowIDCoercer(partitionID, rowGroupId);
             }
 
             if (columnMapping.getKind() == PREFILLED) {
