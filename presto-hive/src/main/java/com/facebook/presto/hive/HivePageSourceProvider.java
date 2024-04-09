@@ -103,6 +103,7 @@ public class HivePageSourceProvider
     private final TypeManager typeManager;
     private final RowExpressionService rowExpressionService;
     private final LoadingCache<RowExpressionCacheKey, RowExpression> optimizedRowExpressionCache;
+    private final boolean rowIDEnabled;
 
     @Inject
     public HivePageSourceProvider(
@@ -117,6 +118,7 @@ public class HivePageSourceProvider
     {
         requireNonNull(hiveClientConfig, "hiveClientConfig is null");
         this.hiveStorageTimeZone = hiveClientConfig.getDateTimeZone();
+        this.rowIDEnabled = hiveClientConfig.isRowIDEnabled();
         this.hdfsEnvironment = requireNonNull(hdfsEnvironment, "hdfsEnvironment is null");
         this.cursorProviders = ImmutableSet.copyOf(requireNonNull(cursorProviders, "cursorProviders is null"));
         this.pageSourceFactories = ImmutableSet.copyOf(requireNonNull(pageSourceFactories, "pageSourceFactories is null"));
@@ -276,7 +278,7 @@ public class HivePageSourceProvider
                     toColumnHandles(regularAndInterimColumnMappings, true),
                     fileContext,
                     encryptionInformation,
-                    hiveLayout.isAppendRowNumberEnabled() || hiveLayout.isAppendRowId());
+                    hiveLayout.isAppendRowNumberEnabled() || (hiveLayout.isAppendRowId() && this.rowIDEnabled));
             if (pageSource.isPresent()) {
                 return pageSource.get();
             }
@@ -387,7 +389,7 @@ public class HivePageSourceProvider
                     hiveStorageTimeZone,
                     fileContext,
                     encryptionInformation,
-                    layout.isAppendRowNumberEnabled() || layout.isAppendRowId());
+                    layout.isAppendRowNumberEnabled());
             if (pageSource.isPresent()) {
                 return Optional.of(pageSource.get());
             }

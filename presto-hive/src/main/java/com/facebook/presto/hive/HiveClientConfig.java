@@ -217,6 +217,8 @@ public class HiveClientConfig
     private int parquetQuickStatsMaxConcurrentCalls = 500;
     private int quickStatsMaxConcurrentCalls = 100;
 
+    private boolean rowIDEnabled;
+
     @Min(0)
     public int getMaxInitialSplits()
     {
@@ -1775,6 +1777,19 @@ public class HiveClientConfig
     {
         this.partitionFilteringFromMetastoreEnabled = partitionFilteringFromMetastoreEnabled;
         return this;
+    }
+
+    @Config("hive.row-id-enabled")
+    @ConfigDescription("Support the $row_id hidden column")
+    public HiveClientConfig setRowIDEnabled(boolean rowIDEnabled)
+    {
+        this.rowIDEnabled = rowIDEnabled;
+        return this;
+    }
+
+    public boolean isRowIDEnabled()
+    {
+        return this.rowIDEnabled;
     }
 
     @Config("hive.parallel-parsing-of-partition-values-enabled")
