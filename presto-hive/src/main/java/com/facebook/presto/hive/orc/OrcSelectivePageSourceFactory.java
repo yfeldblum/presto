@@ -204,7 +204,8 @@ public class OrcSelectivePageSourceFactory
             DateTimeZone hiveStorageTimeZone,
             HiveFileContext hiveFileContext,
             Optional<EncryptionInformation> encryptionInformation,
-            boolean appendRowNumberEnabled)
+            boolean appendRowNumberEnabled,
+            Optional<byte[]> rowIDPartitionComponent)
     {
         if (!OrcSerde.class.getName().equals(storage.getStorageFormat().getSerDe())) {
             return Optional.empty();
@@ -242,7 +243,8 @@ public class OrcSelectivePageSourceFactory
                 tupleDomainFilterCache,
                 encryptionInformation,
                 NO_ENCRYPTION,
-                appendRowNumberEnabled));
+                appendRowNumberEnabled,
+                rowIDPartitionComponent));
     }
 
     public static ConnectorPageSource createOrcPageSource(
@@ -272,12 +274,20 @@ public class OrcSelectivePageSourceFactory
             TupleDomainFilterCache tupleDomainFilterCache,
             Optional<EncryptionInformation> encryptionInformation,
             DwrfEncryptionProvider dwrfEncryptionProvider,
-            boolean appendRowNumberEnabled)
+            boolean appendRowNumberEnabled,
+            Optional<byte[]> rowIDPartitionComponent)
     {
         checkArgument(domainCompactionThreshold >= 1, "domainCompactionThreshold must be at least 1");
 
         OrcDataSource orcDataSource = getOrcDataSource(session, fileSplit, hdfsEnvironment, configuration, hiveFileContext, stats);
         Path path = new Path(fileSplit.getPath());
+
+        // TODO is this too eagerly asking for row IDs? Is it OK to ask only if we have a rowIDPartitionComponent?
+        // TODO Throw if isRowIdColumnHandle, but the rowIDPartitionComponent is missing
+        boolean supplyRowIDs = columns.stream().anyMatch(column -> HiveColumnHandle.isRowIdColumnHandle(column))
+                && rowIDPartitionComponent.isPresent();
+        String rowGroupId = path.getName();
+        byte[] partitionID = rowIDPartitionComponent.orElse(new byte[0]);
 
         DataSize maxMergeDistance = getOrcMaxMergeDistance(session);
         DataSize tinyStripeThreshold = getOrcTinyStripeThreshold(session);
@@ -287,7 +297,7 @@ public class OrcSelectivePageSourceFactory
                 .withTinyStripeThreshold(tinyStripeThreshold)
                 .withMaxBlockSize(maxReadBlockSize)
                 .withZstdJniDecompressionEnabled(isOrcZstdJniDecompressionEnabled(session))
-                .withAppendRowNumber(appendRowNumberEnabled)
+                .withAppendRowNumber(appendRowNumberEnabled || supplyRowIDs)
                 .build();
         OrcAggregatedMemoryContext systemMemoryUsage = new HiveOrcAggregatedMemoryContext();
         try {
@@ -377,7 +387,11 @@ public class OrcSelectivePageSourceFactory
                     reader.getOrcDataSource(),
                     systemMemoryUsage,
                     stats,
-                    hiveFileContext.getStats());
+                    hiveFileContext.getStats(),
+                    appendRowNumberEnabled,
+                    partitionID,
+                    rowGroupId,
+                    recordReader.isColumnPresent(OrcSelectivePageSource.ROW_ID_COLUMN_INDEX));
         }
         catch (Exception e) {
             try {

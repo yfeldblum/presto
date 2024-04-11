@@ -5202,6 +5202,7 @@ public abstract class AbstractTestHiveClient
         for (ConnectorSplit split : splits) {
             try (ConnectorPageSource pageSource = pageSourceProvider.createPageSource(transaction.getTransactionHandle(), session, split, tableHandle.getLayout().get(), columnHandles, NON_CACHEABLE)) {
                 expectedStorageFormat.ifPresent(format -> assertPageSourceType(pageSource, format));
+                // TODO possibly here we need to check if there's a row number column and add a type for that too
                 MaterializedResult result = materializeSourceDataStream(session, pageSource, getTypes(columnHandles));
                 allRows.addAll(result.getMaterializedRows());
             }

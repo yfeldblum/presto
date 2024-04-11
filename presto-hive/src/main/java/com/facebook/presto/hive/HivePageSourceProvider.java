@@ -275,8 +275,7 @@ public class HivePageSourceProvider
                     hiveSplit.getStorage(),
                     toColumnHandles(regularAndInterimColumnMappings, true),
                     fileContext,
-                    encryptionInformation,
-                    hiveLayout.isAppendRowNumberEnabled() || hiveLayout.isAppendRowId());
+                    encryptionInformation);
             if (pageSource.isPresent()) {
                 return pageSource.get();
             }
@@ -387,7 +386,8 @@ public class HivePageSourceProvider
                     hiveStorageTimeZone,
                     fileContext,
                     encryptionInformation,
-                    layout.isAppendRowNumberEnabled() || layout.isAppendRowId());
+                    layout.isAppendRowNumberEnabled(),
+                    split.getRowIdPartitionComponent());
             if (pageSource.isPresent()) {
                 return Optional.of(pageSource.get());
             }

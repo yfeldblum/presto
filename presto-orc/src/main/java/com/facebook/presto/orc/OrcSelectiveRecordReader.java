@@ -99,7 +99,7 @@ public class OrcSelectiveRecordReader
     private static final Page EMPTY_PAGE = new Page(0);
 
     private final int[] hiveColumnIndices;                            // elements are hive column indices
-    private final List<Integer> outputColumns;                        // elements are hive column indices
+    private final List<Integer> outputColumns;                        // elements are zero based column indices
     private final Map<Integer, Type> columnTypes;                     // key: index into hiveColumnIndices array
     private final Object[] constantValues;                            // aligned with hiveColumnIndices array
     private final Function<Block, Block>[] coercers;                   // aligned with hiveColumnIndices array
@@ -902,6 +902,19 @@ public class OrcSelectiveRecordReader
             throws IOException
     {
         super.close();
+    }
+
+    /**
+     * Convert from Hive column index to zero based column index.
+     */
+    public int toZeroBasedColumnIndex(int hiveColumnIndex)
+    {
+        for (int i = 0; i < hiveColumnIndices.length; i++) {
+            if (hiveColumnIndices[i] == hiveColumnIndex) {
+                return outputColumns.get(i);
+            }
+        }
+        throw new IllegalArgumentException("Hive column " + hiveColumnIndex + " not found");
     }
 
     private final class OrcBlockLoader
