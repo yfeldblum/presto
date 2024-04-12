@@ -36,7 +36,6 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import org.openjdk.jmh.runner.options.VerboseMode;
 
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
-import static com.google.common.base.Preconditions.checkState;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.openjdk.jmh.annotations.Mode.AverageTime;
@@ -76,7 +75,6 @@ public class BenchmarkReorderInterconnectedJoins
         @Setup
         public void setup()
         {
-            checkState(numberOfTables >= 2, "numberOfTables must be >= 2");
             Session session = testSessionBuilder()
                     .setSystemProperty("join_reordering_strategy", joinReorderingStrategy)
                     .setSystemProperty("join_distribution_type", "AUTOMATIC")
