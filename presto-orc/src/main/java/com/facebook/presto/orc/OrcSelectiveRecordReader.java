@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -907,14 +908,14 @@ public class OrcSelectiveRecordReader
     /**
      * Convert from Hive column index to zero based column index.
      */
-    public int toZeroBasedColumnIndex(int hiveColumnIndex)
+    public OptionalInt toZeroBasedColumnIndex(int hiveColumnIndex)
     {
         for (int i = 0; i < hiveColumnIndices.length; i++) {
             if (hiveColumnIndices[i] == hiveColumnIndex) {
-                return outputColumns.get(i);
+                return OptionalInt.of(outputColumns.get(i));
             }
         }
-        throw new IllegalArgumentException("Hive column " + hiveColumnIndex + " not found");
+        return OptionalInt.empty();
     }
 
     private final class OrcBlockLoader

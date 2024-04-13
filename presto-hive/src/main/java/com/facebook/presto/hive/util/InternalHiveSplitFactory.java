@@ -78,6 +78,7 @@ public class InternalHiveSplitFactory
         this.nodeSelectionStrategy = requireNonNull(nodeSelectionStrategy, "nodeSelectionStrategy is null");
         this.s3SelectPushdownEnabled = s3SelectPushdownEnabled;
         this.partitionInfo = partitionInfo;
+        // todo here it needs row ID
         this.schedulerUsesHostAddresses = schedulerUsesHostAddresses;
         this.encryptionInformation = requireNonNull(encryptionInformation, "encryptionInformation is null");
         this.minimumTargetSplitSizeInBytes = requireNonNull(minimumTargetSplitSize, "minimumSplittableSize is null").toBytes();

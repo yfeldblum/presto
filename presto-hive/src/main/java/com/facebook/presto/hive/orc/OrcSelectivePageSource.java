@@ -28,6 +28,7 @@ import com.facebook.presto.spi.PrestoException;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.OptionalInt;
 
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_BAD_DATA;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_CURSOR_ERROR;
@@ -49,7 +50,7 @@ public class OrcSelectivePageSource
     private final boolean appendRowNumberEnabled;
     private final RowIDCoercer coercer;
     private final boolean supplyRowIDs;
-
+    private final OptionalInt rowIDColumnIndex;
     private boolean closed;
 
     OrcSelectivePageSource(
@@ -70,7 +71,10 @@ public class OrcSelectivePageSource
         this.runtimeStats = runtimeStats;
         this.appendRowNumberEnabled = appendRowNumberEnabled;
         this.coercer = new RowIDCoercer(partitionID, rowGroupId);
+        // TODO can we combine supplyRowIDs and rowIDColumnIndex by using
+        // rowIDColumnIndex.isPresent() instead of a separate supplyRowIDs argument?
         this.supplyRowIDs = supplyRowIDs;
+        this.rowIDColumnIndex = recordReader.toZeroBasedColumnIndex(ROW_ID_COLUMN_INDEX);
     }
 
     @Override
@@ -141,11 +145,10 @@ public class OrcSelectivePageSource
         Block rowIDs = coercer.apply(rowNumbers);
 
         // figure out which block is the row ID and replace it
-        int rowIDColumnIndex = recordReader.toZeroBasedColumnIndex(ROW_ID_COLUMN_INDEX);
-        page = page.replaceColumn(rowIDColumnIndex, rowIDs);
+        page = page.replaceColumn(rowIDColumnIndex.getAsInt(), rowIDs);
 
         if (!appendRowNumberEnabled) {
-            // remove the row number block now that the row IDs were constructed unless it was also requested
+            // remove the row number block now that the row IDs have been constructed unless it was also requested
             page = page.dropColumn(page.getChannelCount() - 1);
         }
         return page;

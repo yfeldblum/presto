@@ -105,6 +105,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
@@ -1048,16 +1049,10 @@ public class TestSelectiveOrcReader
                 false,
                 new TestingHiveOrcAggregatedMemoryContext(),
                 false)) {
-            assertEquals(recordReader.toZeroBasedColumnIndex(3), 2);
-            assertEquals(recordReader.toZeroBasedColumnIndex(7), 1);
-            assertEquals(recordReader.toZeroBasedColumnIndex(-100), 0);
-            try {
-                recordReader.toZeroBasedColumnIndex(1);
-                fail();
-            }
-            catch (IllegalArgumentException expected) {
-                assertEquals(expected.getMessage(), "Hive column 1 not found");
-            }
+            assertEquals(recordReader.toZeroBasedColumnIndex(3).getAsInt(), 2);
+            assertEquals(recordReader.toZeroBasedColumnIndex(7).getAsInt(), 1);
+            assertEquals(recordReader.toZeroBasedColumnIndex(-100).getAsInt(), 0);
+            assertFalse(recordReader.toZeroBasedColumnIndex(1).isPresent());
         }
     }
 

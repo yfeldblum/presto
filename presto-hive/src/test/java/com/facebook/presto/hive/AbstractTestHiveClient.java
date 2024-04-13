@@ -171,6 +171,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -3102,6 +3103,9 @@ public abstract class AbstractTestHiveClient
 
             // finish creating table
             metadata.finishCreateTable(session, outputHandle, fragments, ImmutableList.of());
+            // TODO: problem: in normal usage creating the table sends this to Metastore and we get it back later,
+           // but here it seems we somehow use it again without calling Metastore? so the row ID partition component
+           // isn't set?
 
             transaction.commit();
         }
@@ -3112,6 +3116,7 @@ public abstract class AbstractTestHiveClient
             ConnectorSession session = newSession(ImmutableMap.of(SORTED_WRITE_TO_TEMP_PATH_ENABLED, useTempPath));
 
             ConnectorTableHandle hiveTableHandle = getTableHandle(metadata, table);
+            // select all columns in table, including synthetic columns such as $path and $row_id
             List<ColumnHandle> columnHandles = ImmutableList.copyOf(metadata.getColumnHandles(session, hiveTableHandle).values());
 
             ConnectorTableLayoutHandle layoutHandle = getLayout(session, transaction, hiveTableHandle, TupleDomain.all());
@@ -3857,11 +3862,13 @@ public abstract class AbstractTestHiveClient
 
     protected Partition createDummyPartition(Table table, String partitionName, Optional<HiveBucketProperty> bucketProperty)
     {
+        byte[] rowIdPartitionComponent = {98, 45};
         return Partition.builder()
                 .setDatabaseName(table.getDatabaseName())
                 .setTableName(table.getTableName())
                 .setColumns(table.getDataColumns())
                 .setValues(toPartitionValues(partitionName))
+                .setRowIdPartitionComponent(Optional.of(rowIdPartitionComponent))
                 .withStorage(storage -> storage
                         .setStorageFormat(fromHiveStorageFormat(HiveStorageFormat.ORC))
                         .setLocation(partitionTargetPath(new SchemaTableName(table.getDatabaseName(), table.getTableName()), partitionName))
@@ -5202,7 +5209,6 @@ public abstract class AbstractTestHiveClient
         for (ConnectorSplit split : splits) {
             try (ConnectorPageSource pageSource = pageSourceProvider.createPageSource(transaction.getTransactionHandle(), session, split, tableHandle.getLayout().get(), columnHandles, NON_CACHEABLE)) {
                 expectedStorageFormat.ifPresent(format -> assertPageSourceType(pageSource, format));
-                // TODO possibly here we need to check if there's a row number column and add a type for that too
                 MaterializedResult result = materializeSourceDataStream(session, pageSource, getTypes(columnHandles));
                 allRows.addAll(result.getMaterializedRows());
             }
@@ -5238,7 +5244,8 @@ public abstract class AbstractTestHiveClient
 
     private List<ConnectorSplit> getAllSplits(ConnectorSession session, Transaction transaction, ConnectorTableLayoutHandle layoutHandle)
     {
-        return getAllSplits(splitManager.getSplits(transaction.getTransactionHandle(), session, layoutHandle, SPLIT_SCHEDULING_CONTEXT));
+        ConnectorSplitSource splits = splitManager.getSplits(transaction.getTransactionHandle(), session, layoutHandle, SPLIT_SCHEDULING_CONTEXT);
+        return getAllSplits(splits);
     }
 
     private ConnectorTableLayoutHandle getLayout(ConnectorSession session, Transaction transaction, ConnectorTableHandle tableHandle, TupleDomain<ColumnHandle> tupleDomain)
@@ -5251,7 +5258,10 @@ public abstract class AbstractTestHiveClient
     {
         ImmutableList.Builder<ConnectorSplit> splits = ImmutableList.builder();
         while (!splitSource.isFinished()) {
-            splits.addAll(getFutureValue(splitSource.getNextBatch(NOT_PARTITIONED, 1000)).getSplits());
+            CompletableFuture<ConnectorSplitSource.ConnectorSplitBatch> nextBatch = splitSource.getNextBatch(NOT_PARTITIONED, 1000);
+            ConnectorSplitSource.ConnectorSplitBatch futureValue = getFutureValue(nextBatch);
+            List<ConnectorSplit> splits1 = futureValue.getSplits();
+            splits.addAll(splits1);
         }
         return splits.build();
     }

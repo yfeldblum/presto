@@ -276,6 +276,7 @@ public class HiveSplitManager
         // sort partitions
         partitions = Ordering.natural().onResultOf(HivePartition::getPartitionId).reverse().sortedCopy(partitions);
 
+        // TODO need to have row ID by here
         Iterable<HivePartitionMetadata> hivePartitions = getPartitionMetadata(
                 metastore,
                 table,
@@ -458,6 +459,8 @@ public class HiveSplitManager
                         TableToPartitionMapping.empty(),
                         encryptionInformationProvider.getReadEncryptionInformation(session, table, allRequestedColumns),
                         ImmutableSet.of(),
+
+                        // TODO needs row ID
                         Optional.empty()));
             }
         }
@@ -494,11 +497,13 @@ public class HiveSplitManager
                                                                            WarningCollector warningCollector)
     {
         Iterable<List<HivePartitionMetadata>> partitionBatches = transform(partitionNameBatches, partitionBatch -> {
+            // TODO need to have row ID by here 12
             Map<String, PartitionSplitInfo> partitionSplitInfo = getPartitionSplitInfo(session, metastore, tableName, partitionBatch, predicateColumns, domains);
             if (partitionBatch.size() != partitionSplitInfo.size()) {
                 throw new PrestoException(GENERIC_INTERNAL_ERROR, format("Expected %s partitions but found %s", partitionBatch.size(), partitionSplitInfo.size()));
             }
 
+            // TODO need to have row ID by here 11
             Map<String, Partition> partitions = partitionSplitInfo.entrySet().stream()
                     .collect(toImmutableMap(Entry::getKey, entry -> entry.getValue().getPartition()));
             Optional<Map<String, EncryptionInformation>> encryptionInformationForPartitions = encryptionInformationProvider.getReadEncryptionInformation(
@@ -511,6 +516,7 @@ public class HiveSplitManager
             Map<String, Set<String>> partitionsNotReadable = new HashMap<>();
             int unreadablePartitionsSkipped = 0;
             for (HivePartition hivePartition : partitionBatch) {
+                // TODO need to have row ID by here 10
                 Partition partition = partitions.get(hivePartition.getPartitionId().getPartitionName());
                 if (partitionSplitInfo.get(hivePartition.getPartitionId().getPartitionName()).isPruned()) {
                     continue;
@@ -588,7 +594,7 @@ public class HiveSplitManager
                                 tableToPartitionMapping,
                                 encryptionInformation,
                                 partitionSplitInfo.get(hivePartition.getPartitionId().getPartitionName()).getRedundantColumnDomains(),
-                                Optional.empty()));
+                                partition.getRowIdPartitionComponent()));
             }
             if (unreadablePartitionsSkipped > 0) {
                 StringBuilder warningMessage = new StringBuilder(format("Table '%s' has %s out of %s partitions unreadable: ", tableName, unreadablePartitionsSkipped, partitionBatch.size()));
@@ -733,6 +739,7 @@ public class HiveSplitManager
             Optional<Map<Subfield, Domain>> domains)
     {
         MetastoreContext metastoreContext = new MetastoreContext(session.getIdentity(), session.getQueryId(), session.getClientInfo(), session.getSource(), getMetastoreHeaders(session), isUserDefinedTypeEncodingEnabled(session), metastore.getColumnConverterProvider(), session.getWarningCollector(), session.getRuntimeStats());
+        // TODO possibly here the test metastore doesn't reload and set the row ID partition component 13
         Map<String, Optional<Partition>> partitions = metastore.getPartitionsByNames(
                 metastoreContext,
                 tableName.getSchemaName(),

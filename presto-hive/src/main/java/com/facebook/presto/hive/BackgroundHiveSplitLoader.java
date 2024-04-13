@@ -86,6 +86,7 @@ public class BackgroundHiveSplitLoader
         this.loaderConcurrency = loaderConcurrency;
         checkArgument(loaderConcurrency > 0, "loaderConcurrency must be > 0, found: %s", loaderConcurrency);
         this.executor = requireNonNull(executor, "executor is null");
+        // TODO need to have row ID by here in the iterable of the partitions
         this.partitions = new ConcurrentLazyQueue<>(requireNonNull(partitions, "partitions is null"));
         this.delegatingPartitionLoader = new DelegatingPartitionLoader(table, pathDomain, tableBucketInfo, session, hdfsEnvironment, namenodeStats, directoryLister, fileIterators, recursiveDirWalkerEnabled, schedulerUsesHostAddresses, partialAggregationsPushedDown);
     }
@@ -185,6 +186,7 @@ public class BackgroundHiveSplitLoader
     {
         Iterator<InternalHiveSplit> splits = fileIterators.poll();
         if (splits == null) {
+            // TODO need to have row ID by here
             HivePartitionMetadata partition = partitions.poll();
             if (partition == null) {
                 return COMPLETED_FUTURE;

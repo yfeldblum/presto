@@ -194,7 +194,7 @@ public class OrcSelectivePageSourceFactory
             ConnectorSession session,
             HiveFileSplit fileSplit,
             Storage storage,
-            List<HiveColumnHandle> columns,
+            List<HiveColumnHandle> selectedColumns,
             Map<Integer, String> prefilledValues,
             Map<Integer, HiveCoercer> coercers,
             Optional<BucketAdaptation> bucketAdaptation,
@@ -222,7 +222,7 @@ public class OrcSelectivePageSourceFactory
                 hdfsEnvironment,
                 configuration,
                 fileSplit,
-                columns,
+                selectedColumns,
                 prefilledValues,
                 coercers,
                 bucketAdaptation,
@@ -253,7 +253,7 @@ public class OrcSelectivePageSourceFactory
             HdfsEnvironment hdfsEnvironment,
             Configuration configuration,
             HiveFileSplit fileSplit,
-            List<HiveColumnHandle> columns,
+            List<HiveColumnHandle> selectedColumns,
             Map<Integer, String> prefilledValues,
             Map<Integer, HiveCoercer> coercers,
             Optional<BucketAdaptation> bucketAdaptation,
@@ -282,11 +282,11 @@ public class OrcSelectivePageSourceFactory
         OrcDataSource orcDataSource = getOrcDataSource(session, fileSplit, hdfsEnvironment, configuration, hiveFileContext, stats);
         Path path = new Path(fileSplit.getPath());
 
-        // TODO is this too eagerly asking for row IDs? Is it OK to ask only if we have a rowIDPartitionComponent?
-        // TODO Throw if isRowIdColumnHandle, but the rowIDPartitionComponent is missing
-        boolean supplyRowIDs = columns.stream().anyMatch(column -> HiveColumnHandle.isRowIdColumnHandle(column))
-                && rowIDPartitionComponent.isPresent();
+        boolean supplyRowIDs = selectedColumns.stream().anyMatch(column -> HiveColumnHandle.isRowIdColumnHandle(column));
         String rowGroupId = path.getName();
+        if (supplyRowIDs && !rowIDPartitionComponent.isPresent()) {
+            throw new IllegalArgumentException("rowIDPartitionComponent required when supplying row IDs");
+        }
         byte[] partitionID = rowIDPartitionComponent.orElse(new byte[0]);
 
         DataSize maxMergeDistance = getOrcMaxMergeDistance(session);
@@ -305,7 +305,7 @@ public class OrcSelectivePageSourceFactory
 
             OrcReader reader = getOrcReader(
                     orcEncoding,
-                    columns,
+                    selectedColumns,
                     useOrcColumnNames,
                     orcFileTailSource,
                     stripeMetadataSourceFactory,
@@ -316,11 +316,11 @@ public class OrcSelectivePageSourceFactory
                     orcDataSource,
                     path);
 
-            List<HiveColumnHandle> physicalColumns = getPhysicalHiveColumnHandles(columns, useOrcColumnNames, reader.getTypes(), path);
+            List<HiveColumnHandle> physicalColumns = getPhysicalHiveColumnHandles(selectedColumns, useOrcColumnNames, reader.getTypes(), path);
 
-            Map<Integer, Integer> indexMapping = IntStream.range(0, columns.size())
+            Map<Integer, Integer> indexMapping = IntStream.range(0, selectedColumns.size())
                     .boxed()
-                    .collect(toImmutableMap(i -> columns.get(i).getHiveColumnIndex(), i -> physicalColumns.get(i).getHiveColumnIndex()));
+                    .collect(toImmutableMap(i -> selectedColumns.get(i).getHiveColumnIndex(), i -> physicalColumns.get(i).getHiveColumnIndex()));
 
             Map<Integer, String> columnNames = physicalColumns.stream()
                     .collect(toImmutableMap(HiveColumnHandle::getHiveColumnIndex, HiveColumnHandle::getName));

@@ -235,6 +235,7 @@ public class StoragePartitionLoader
                 getNodeSelectionStrategy(session),
                 getMaxInitialSplitSize(session),
                 s3SelectPushdownEnabled,
+                // TODO need to have row ID by here
                 new HiveSplitPartitionInfo(
                         storage,
                         path.toUri(),
@@ -304,8 +305,18 @@ public class StoragePartitionLoader
                 }
             }
         }
-        InternalHiveSplitFactory splitFactory = getHiveSplitFactory(fs, inputFormat, s3SelectPushdownEnabled, storage, path, partitionName,
-                partitionKeys, partitionDataColumnCount, partition, bucketConversionRequiresWorkerParticipation ? bucketConversion : Optional.empty());
+        // TODO need to have row ID by here
+        InternalHiveSplitFactory splitFactory = getHiveSplitFactory(
+                fs,
+                inputFormat,
+                s3SelectPushdownEnabled,
+                storage,
+                path,
+                partitionName,
+                partitionKeys,
+                partitionDataColumnCount,
+                partition,
+                bucketConversionRequiresWorkerParticipation ? bucketConversion : Optional.empty());
 
         if (shouldUseFileSplitsFromInputFormat(inputFormat, directoryLister)) {
             return handleGetSplitsFromInputFormat(configuration, path, schema, inputFormat, stopped, hiveSplitSource, splitFactory);
