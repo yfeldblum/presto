@@ -519,7 +519,6 @@ public class TestHiveSplitSource
     private static class TestSplit
             extends InternalHiveSplit
     {
-
         private static final byte[] TEST_ROW_ID_PARTITION_COMPONENT = {9, 76, 32, 11};
 
         private TestSplit(int id)

@@ -235,7 +235,6 @@ public class StoragePartitionLoader
                 getNodeSelectionStrategy(session),
                 getMaxInitialSplitSize(session),
                 s3SelectPushdownEnabled,
-                // TODO need to have row ID by here
                 new HiveSplitPartitionInfo(
                         storage,
                         path.toUri(),

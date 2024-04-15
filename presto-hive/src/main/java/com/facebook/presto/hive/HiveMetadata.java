@@ -2106,7 +2106,6 @@ public class HiveMetadata
                     }
                 }
                 // insert into new partition or overwrite existing partition
-                // TODO one of several places in this class where rowIDPartitionComponent is not filled in
                 Partition partition = partitionObjectBuilder.buildPartitionObject(
                         session,
                         table,

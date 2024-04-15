@@ -74,7 +74,6 @@ public class DelegatingPartitionLoader
             // Partition has list of file names and sizes. We can avoid the listFiles() call to underlying storage.
             return manifestPartitionLoader.loadPartition(partition, hiveSplitSource, stopped);
         }
-        // TODO need to have row ID by here
         return storagePartitionLoader.loadPartition(partition, hiveSplitSource, stopped);
     }
 
