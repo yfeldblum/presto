@@ -219,11 +219,6 @@ public class TestEventListenerWithExchangeMaterialization
         {
             eventsBuilder.addQueryCompleted(queryCompletedEvent);
         }
-
-        @Override
-        public void splitCompleted(SplitCompletedEvent splitCompletedEvent)
-        {
-        }
     }
 
     static class EventsBuilder

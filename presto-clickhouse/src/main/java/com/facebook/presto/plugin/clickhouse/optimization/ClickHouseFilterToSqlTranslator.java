@@ -91,12 +91,6 @@ public class ClickHouseFilterToSqlTranslator
     }
 
     @Override
-    public TranslatedExpression<ClickHouseExpression> translateLambda(LambdaDefinitionExpression lambda, Map<VariableReferenceExpression, ColumnHandle> context, RowExpressionTreeTranslator<ClickHouseExpression, Map<VariableReferenceExpression, ColumnHandle>> rowExpressionTreeTranslator)
-    {
-        return untranslated(lambda);
-    }
-
-    @Override
     public TranslatedExpression<ClickHouseExpression> translateCall(CallExpression call, Map<VariableReferenceExpression, ColumnHandle> context, RowExpressionTreeTranslator<ClickHouseExpression, Map<VariableReferenceExpression, ColumnHandle>> rowExpressionTreeTranslator)
     {
         List<TranslatedExpression<ClickHouseExpression>> translatedExpressions = call.getArguments().stream()

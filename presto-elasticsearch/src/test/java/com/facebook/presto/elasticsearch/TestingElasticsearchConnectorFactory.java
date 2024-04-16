@@ -32,43 +32,4 @@ class TestingElasticsearchConnectorFactory
     TestingElasticsearchConnectorFactory()
     {
     }
-
-    @Override
-    public String getName()
-    {
-        return "elasticsearch";
-    }
-
-    @Override
-    public ConnectorHandleResolver getHandleResolver()
-    {
-        return new ElasticsearchHandleResolver();
-    }
-
-    @Override
-    public Connector create(String catalogName, Map<String, String> config, ConnectorContext context)
-    {
-        requireNonNull(catalogName, "catalogName is null");
-        requireNonNull(config, "config is null");
-
-        try {
-            Bootstrap app = new Bootstrap(
-                    new JsonModule(),
-                    new ElasticsearchConnectorModule(),
-                    binder -> {
-                        binder.bind(TypeManager.class).toInstance(context.getTypeManager());
-                        binder.bind(NodeManager.class).toInstance(context.getNodeManager());
-                    });
-
-            Injector injector = app
-                    .doNotInitializeLogging()
-                    .setRequiredConfigurationProperties(config)
-                    .initialize();
-
-            return injector.getInstance(ElasticsearchConnector.class);
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

@@ -91,12 +91,6 @@ public class JdbcFilterToSqlTranslator
     }
 
     @Override
-    public TranslatedExpression<JdbcExpression> translateLambda(LambdaDefinitionExpression lambda, Map<VariableReferenceExpression, ColumnHandle> context, RowExpressionTreeTranslator<JdbcExpression, Map<VariableReferenceExpression, ColumnHandle>> rowExpressionTreeTranslator)
-    {
-        return untranslated(lambda);
-    }
-
-    @Override
     public TranslatedExpression<JdbcExpression> translateCall(CallExpression call, Map<VariableReferenceExpression, ColumnHandle> context, RowExpressionTreeTranslator<JdbcExpression, Map<VariableReferenceExpression, ColumnHandle>> rowExpressionTreeTranslator)
     {
         List<TranslatedExpression<JdbcExpression>> translatedExpressions = call.getArguments().stream()

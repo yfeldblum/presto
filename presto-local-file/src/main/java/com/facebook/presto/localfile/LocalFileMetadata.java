@@ -40,7 +40,6 @@ import static com.facebook.presto.common.type.VarcharType.createUnboundedVarchar
 import static com.facebook.presto.localfile.LocalFileColumnHandle.SERVER_ADDRESS_COLUMN_NAME;
 import static com.facebook.presto.localfile.LocalFileColumnHandle.SERVER_ADDRESS_ORDINAL_POSITION;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 
 public class LocalFileMetadata
@@ -148,12 +147,6 @@ public class LocalFileMetadata
     public List<SchemaTableName> listViews(ConnectorSession session, String schemaNameOrNull)
     {
         return emptyList();
-    }
-
-    @Override
-    public Map<SchemaTableName, ConnectorViewDefinition> getViews(ConnectorSession session, SchemaTablePrefix prefix)
-    {
-        return emptyMap();
     }
 
     private List<SchemaTableName> listTables(ConnectorSession session, SchemaTablePrefix prefix)

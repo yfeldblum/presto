@@ -30,9 +30,4 @@ public class PageInputFormat
     {
         throw new UnsupportedOperationException();
     }
-
-    protected boolean isSplitable(FileSystem fs, Path file)
-    {
-        return true;
-    }
 }

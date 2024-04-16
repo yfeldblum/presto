@@ -54,36 +54,6 @@ public class ReadOnlyAccessControl
     }
 
     @Override
-    public void checkCanAddColumn(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName)
-    {
-        denyAddColumn(tableName.toString());
-    }
-
-    @Override
-    public void checkCanDropColumn(ConnectorTransactionHandle transactionHandle, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName)
-    {
-        denyDropColumn(tableName.toString());
-    }
-
-    @Override
-    public void checkCanCreateTable(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName)
-    {
-        denyCreateTable(tableName.toString());
-    }
-
-    @Override
-    public void checkCanDropTable(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName)
-    {
-        denyDropTable(tableName.toString());
-    }
-
-    @Override
-    public void checkCanRenameTable(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName, SchemaTableName newTableName)
-    {
-        denyRenameTable(tableName.toString(), newTableName.toString());
-    }
-
-    @Override
     public void checkCanShowTablesMetadata(ConnectorTransactionHandle transactionHandle, ConnectorIdentity identity, AccessControlContext context, String schemaName)
     {
     }
@@ -95,51 +65,15 @@ public class ReadOnlyAccessControl
     }
 
     @Override
-    public void checkCanRenameColumn(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName)
-    {
-        denyRenameColumn(tableName.toString());
-    }
-
-    @Override
     public void checkCanSelectFromColumns(ConnectorTransactionHandle transactionHandle, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName, Set<Subfield> columnOrSubfieldNames)
     {
         // allow
     }
 
     @Override
-    public void checkCanInsertIntoTable(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName)
-    {
-        denyInsertTable(tableName.toString());
-    }
-
-    @Override
-    public void checkCanDeleteFromTable(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName)
-    {
-        denyDeleteTable(tableName.toString());
-    }
-
-    @Override
-    public void checkCanUpdateTableColumns(ConnectorTransactionHandle transactionHandle, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName, Set<String> updatedColumns)
-    {
-        denyUpdateTableColumns(tableName.toString(), updatedColumns);
-    }
-
-    @Override
     public void checkCanTruncateTable(ConnectorTransactionHandle transactionHandle, ConnectorIdentity identity, AccessControlContext context, SchemaTableName tableName)
     {
         denyTruncateTable(tableName.toString());
-    }
-
-    @Override
-    public void checkCanCreateView(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName viewName)
-    {
-        denyCreateView(viewName.toString());
-    }
-
-    @Override
-    public void checkCanDropView(ConnectorTransactionHandle transaction, ConnectorIdentity identity, AccessControlContext context, SchemaTableName viewName)
-    {
-        denyDropView(viewName.toString());
     }
 
     @Override

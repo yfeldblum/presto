@@ -94,14 +94,6 @@ public class SingleStoreClient
     }
 
     @Override
-    public PreparedStatement getPreparedStatement(ConnectorSession session, Connection connection,
-            String sql)
-            throws SQLException
-    {
-        return connection.prepareStatement(sql);
-    }
-
-    @Override
     protected ResultSet getTables(Connection connection, Optional<String> schemaName,
             Optional<String> tableName)
             throws SQLException

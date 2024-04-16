@@ -70,14 +70,6 @@ public class PrimitiveColumnWriterV1
         }
     }
 
-    @Override
-    public List<BufferData> getBuffer()
-            throws IOException
-    {
-        checkState(closed);
-        return ImmutableList.of(new BufferData(getDataStreams(), getColumnMetaData()));
-    }
-
     // page header
     // repetition levels
     // definition levels

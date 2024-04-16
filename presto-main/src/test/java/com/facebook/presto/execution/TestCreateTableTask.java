@@ -318,12 +318,6 @@ public class TestCreateTableTask
         }
 
         @Override
-        public void dropColumn(Session session, TableHandle tableHandle, ColumnHandle column)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public Set<ConnectorCapabilities> getConnectorCapabilities(Session session, ConnectorId catalogName)
         {
             return connectorCapabilities;

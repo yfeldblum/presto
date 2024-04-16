@@ -65,12 +65,6 @@ public class AllowAllSystemAccessControl
     }
 
     @Override
-    public AuthorizedIdentity selectAuthorizedIdentity(Identity identity, AccessControlContext context, String userName, List<X509Certificate> certificates)
-    {
-        return new AuthorizedIdentity(userName, "", true);
-    }
-
-    @Override
     public void checkCanSetUser(Identity identity, AccessControlContext context, Optional<Principal> principal, String userName)
     {
     }
